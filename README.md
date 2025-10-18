@@ -1,32 +1,18 @@
-## 📸 Screenshots
-
 <p align="center">
   <img src="assets/logo.png" width="160" alt="PolySandbox Logo" />
 </p>
 
-<p align="center">
-  <img src="assets/daytona.png" width="500" alt="Daytona sandbox run example" />
-</p>
-
-<p align="center">
-  <img src="assets/fast-as-fuh.png" width="500" alt="Daytona execution speed comparison" />
-</p>
-
-<p align="center">
-  <img src="assets/mcqueen.png" width="400" alt="Lightning-fast Daytona run - McQueen reference" />
-</p>
-
-<p align="center">
-  <img src="assets/hack.png" width="500" alt="Hackathon team working on PolySandbox" />
-</p>
-
-🧩 PolySandbox
+### PolySandbox
 
 One Interface to Run AI Code Across Daytona, E2B, and Docker
 PolySandbox is a unified sandbox orchestrator that lets you safely run, evaluate, and compare Python code across multiple execution backends — all through one consistent interface.
 It’s designed for benchmarking AI-generated code from datasets like MBPP and HumanEval, enabling reproducible and backend-agnostic evaluation.
 
-🚀 Features
+<p align="center">
+  <img src="assets/daytona.png" width="500" alt="Daytona sandbox run example" />
+</p>
+
+### Features
 
 Unified API — One /run endpoint for Daytona, E2B, and Docker
 
@@ -40,15 +26,19 @@ Scoring & Metrics — View stdout, stderr, runtime, and correctness
 
 Extensible Design — Add new sandboxes or datasets easily via adapters
 
-🧠 Architecture
+### Architecture
 User/UI  →  FastAPI Server  →  Evaluator  →  Sandbox Adapter  →  Daytona/E2B/Docker
+
+<p align="center">
+  <img src="assets/fast-as-fuh.png" width="500" alt="Daytona execution speed comparison" />
+</p>
 
 
 Adapters: Implement a shared SandboxClient interface
 Evaluator: Normalizes results into an ExecutionResult schema
 RunnerAgent: Chooses backend and coordinates runs dynamically
 
-⚙️ Setup
+### Setup
 1️⃣ Install UV and dependencies
 uv venv
 source .venv/bin/activate
@@ -67,7 +57,7 @@ uv run uvicorn poly_sandbox.main:app --reload
 4️⃣ Run the Streamlit UI
 uv run streamlit run poly_sandbox/ui/app.py
 
-🧪 Testing
+### Testing
 
 Run all tests:
 
@@ -94,7 +84,7 @@ Response:
   "backend": "daytona"
 }
 
-🏗️ Folder Structure
+### Folder Structure
 poly_sandbox/
 ├── adapters/        # Daytona, E2B, Docker clients
 ├── datasets/        # MBPP, HumanEval loaders
@@ -104,12 +94,12 @@ poly_sandbox/
 ├── tests/           # Pytest suite
 └── main.py          # FastAPI entrypoint
 
-🧠 Inspiration
+### Inspiration
 
 Evaluating AI code safely across sandboxes is fragmented.
 PolySandbox unifies it — one API, multiple backends, consistent results.
 
-🏆 Hackathon Highlights
+### Hackathon Highlights
 
 Unified interface for three sandbox systems
 
@@ -118,3 +108,6 @@ End-to-end demo (UI → API → Sandbox → Scorer)
 Modular and extensible adapter architecture
 
 Built in under 10 hours for a hackathon demo
+<p align="center">
+  <img src="assets/hack.png" width="500" alt="Hackathon team working on PolySandbox" />
+</p>
