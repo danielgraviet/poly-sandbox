@@ -31,16 +31,25 @@ class E2BPool:
         self._lock = asyncio.Lock()
 
     async def start(self):
-        """Provision all sandboxes and wait until ready."""
+        """Provision all sandboxes synchronously (E2B SDK must run on main thread)."""
         print(f"[E2BPool] Spinning up {self._size} sandboxes...")
-        for i in range(self._size):
-            try:
-                sb = await asyncio.to_thread(Sandbox.create, self._template_id, 120)
-                self._sandboxes.append(sb)
-                print(f"[E2BPool] Sandbox {i} ready: {sb.sandbox_id}")
-            except Exception as e:
-                print(f"[E2BPool] Failed to create sandbox {i}: {e}")
-        print("[E2BPool] All sandboxes ready.")
+
+        # Run the blocking sandbox creation loop in a separate thread — one per pool.
+        # Each Sandbox.create() *must* run synchronously, not inside asyncio.to_thread itself.
+        def _create_sandboxes():
+            sandboxes = []
+            for i in range(self._size):
+                try:
+                    sb = Sandbox.create(timeout=60)
+                    sandboxes.append(sb)
+                    print(f"[E2BPool] Sandbox {i} ready: {sb.sandbox_id}")
+                except Exception as e:
+                    print(f"[E2BPool] Failed to create sandbox {i}: {e}")
+            return sandboxes
+
+        self._sandboxes = await asyncio.to_thread(_create_sandboxes)
+        print(f"[E2BPool] Ready sandboxes: {len(self._sandboxes)}")
+
 
     async def acquire(self) -> Sandbox:
         """Get an available sandbox."""

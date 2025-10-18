@@ -9,7 +9,7 @@ from typing import Literal, Optional
 
 from adapters.daytona_client import DaytonaClient, DaytonaPool
 from adapters.e2b_client import E2BClient, E2BPool
-from evaluators import scorer, benchmark
+from evaluators import benchmark
 from adapters.base_client import ExecutionResult
 from agents import martian_agent
 
@@ -19,68 +19,18 @@ app = FastAPI(title="PolySandbox API", version="0.1.0")
 # Backend Registry
 # -------------------------------------------------------------------------
 _BACKEND_REGISTRY = {
-    "daytona": DaytonaClient,
-    "e2b": E2BClient,
-    # "docker": DockerClient,
+    "daytona": {"client": DaytonaClient, "pool_class": DaytonaPool},
+    "e2b": {"client": E2BClient, "pool_class": E2BPool},
 }
 
 # -------------------------------------------------------------------------
-# Global Pool Initialization
+# Global Pools
 # -------------------------------------------------------------------------
-_pool: Optional[DaytonaPool] = None
-_e2b_pool: Optional[E2BPool] = None
-
-class BatchRunResponse(BaseModel):
-    total: int
-    passed: int
-    failed: int
-    accuracy: float
-    results_path: str
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Spin up reusable sandbox pools at startup."""
-    global _pool, _e2b_pool
-    print("[Startup] Initializing Daytona pool...")
-    _pool = DaytonaPool(size=5)
-    await _pool.start()
-    print("[Startup] Daytona pool ready.")
-
-    print("[Startup] Initializing E2B pool...")
-    _e2b_pool = E2BPool(size=5)
-    await _e2b_pool.start()
-    print("[Startup] E2B pool ready.")
-
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Clean up sandboxes on shutdown."""
-    global _pool, _e2b_pool
-
-    if _pool:
-        print("[Shutdown] Cleaning up Daytona sandboxes...")
-        await _pool.close()
-        print("[Shutdown] Daytona sandboxes deleted.")
-
-    if _e2b_pool:
-        print("[Shutdown] Cleaning up E2B sandboxes...")
-        await _e2b_pool.shutdown()
-        print("[Shutdown] E2B sandboxes deleted.")
-
-
+_pools: dict[str, object] = {}
 
 # -------------------------------------------------------------------------
-# Pydantic models
+# Models
 # -------------------------------------------------------------------------
-
-class RunRequest(BaseModel):
-    backend: Literal["daytona", "e2b", "docker"] = Field(..., description="Execution backend")
-    code: str = Field(..., description="Python code to execute")
-    tests: str = Field(..., description="Test code to validate correctness")
-
-
 class RunResponse(BaseModel):
     backend: str
     success: bool
@@ -91,101 +41,146 @@ class RunResponse(BaseModel):
     metadata: Optional[dict] = None
 
 
+class BatchRunResponse(BaseModel):
+    total: int
+    passed: int
+    failed: int
+    accuracy: float
+    results_path: str
+
+
+# -------------------------------------------------------------------------
+# Startup & Shutdown
+# -------------------------------------------------------------------------
+@app.on_event("startup")
+async def startup_event():
+    """Spin up reusable sandbox pools at startup."""
+    global _pools
+
+    for backend, cfg in _BACKEND_REGISTRY.items():
+        pool_class = cfg["pool_class"]
+        print(f"[Startup] Initializing {backend} pool...")
+        try:
+            pool = pool_class(size=3)
+            await pool.start()
+            _pools[backend] = pool
+            print(f"[Startup] {backend} pool ready.")
+        except Exception as e:
+            print(f"[Startup] Failed to init {backend} pool: {e}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up all sandbox pools."""
+    global _pools
+
+    for backend, pool in _pools.items():
+        print(f"[Shutdown] Cleaning up {backend} sandboxes...")
+        try:
+            await pool.close()
+        except AttributeError:
+            # E2BPool might have .shutdown() instead of .close()
+            await pool.shutdown()
+        except Exception as e:
+            print(f"[Shutdown] Error cleaning {backend}: {e}")
+        print(f"[Shutdown] {backend} sandboxes deleted.")
+
+    _pools.clear()
+
+
 # -------------------------------------------------------------------------
 # Routes
 # -------------------------------------------------------------------------
-
 @app.get("/backends", response_model=list[str])
 def list_backends():
-    """List available execution backends."""
+    """List available backends."""
     return list(_BACKEND_REGISTRY.keys())
 
 
 @app.post("/run", response_model=RunResponse)
 async def run_single(index: int = 0, backend: str = "daytona"):
-    """Run a single MBPP problem end-to-end and return detailed results."""
-    global _pool, _e2b_pool
-    if backend == "daytona":
-        if _pool is None:
-            raise HTTPException(status_code=503, detail="Daytona pool not initialized")
-        client = DaytonaClient(_pool)
-    elif backend == "e2b":
-        if _e2b_pool is None:
-            raise HTTPException(status_code=503, detail="E2B pool not initialized")
-        client = E2BClient(_e2b_pool)
-    else:
-        raise HTTPException(status_code=400, detail=f"Unsupported backend: {backend}")
+    """Run a single MBPP problem end-to-end using selected backend."""
+    global _pools
+
+    if backend not in _BACKEND_REGISTRY:
+        raise HTTPException(status_code=400, detail=f"Unknown backend: {backend}")
+
+    pool = _pools.get(backend)
+    if not pool:
+        raise HTTPException(status_code=503, detail=f"{backend} pool not initialized")
+
+    client_cls = _BACKEND_REGISTRY[backend]["client"]
+    client = client_cls(pool)
 
     try:
-        # Reuse existing Daytona pool and shared Martian agent
-        client = DaytonaClient(_pool)
         agent = martian_agent.MartianAgent()
-
-        # Run the single benchmark problem
         result = await benchmark.run_one(index, client, agent)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Execution failed: {e}")
 
-    # If an error was returned by the benchmark
     if "error" in result:
         raise HTTPException(status_code=500, detail=f"Benchmark failed: {result['error']}")
 
-    # Construct structured API response
-    response = RunResponse(
-        backend="daytona",
+    return RunResponse(
+        backend=backend,
         success=bool(result.get("success", False)),
         runtime_ms=float(result.get("runtime_ms", 0.0)),
         stdout=result.get("stdout", ""),
         stderr=result.get("stderr", ""),
         score=bool(result.get("score", False)),
-        metadata={"idx": result.get("idx"), "note": "benchmark.run_one"},
+        metadata={"idx": result.get("idx"), "note": f"run_one via {backend}"},
     )
 
-    print(
-        f"[Result] idx={result['idx']} "
-        f"success={result['success']} "
-        f"score={'PASS' if result['score'] else 'FAIL'} "
-        f"runtime={result['runtime_ms']:.2f}ms"
-    )
-    return response
 
-    
 @app.post("/run_batch", response_model=BatchRunResponse)
-async def run_batch(n: int = 10, concurrency: int = 5):
+async def run_batch(n: int = 10, concurrency: int = 5, backend: str = "daytona"):
     """Run MBPP batch directly from Hugging Face and return summary results."""
-    global _pool
-    if _pool is None:
-        raise HTTPException(status_code=503, detail="Daytona pool not initialized")
+    global _pools
+
+    # Validate backend
+    if backend not in _BACKEND_REGISTRY:
+        raise HTTPException(status_code=400, detail=f"Unknown backend: {backend}")
+
+    pool = _pools.get(backend)
+    if not pool:
+        raise HTTPException(status_code=503, detail=f"{backend} pool not initialized")
 
     try:
-        # Run full evaluation but reuse the existing Daytona pool
-        results = await benchmark.run_mbpp_batch(n=n, concurrency=concurrency, pool=_pool)
+        results = await benchmark.run_mbpp_batch(
+            n=n,
+            concurrency=concurrency,
+            pool=pool,
+            backend=backend,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Batch execution failed: {e}")
 
-    # Compute summary stats
+    # --- Compute simple metrics ---
     total = len(results)
     passed = sum(1 for r in results if r.get("score") is True)
     failed = total - passed
     accuracy = round(passed / total, 4) if total > 0 else 0.0
 
-    # Construct API response for frontend consumption
-    summary = BatchRunResponse(
+    # --- Log summary for visibility ---
+    print(
+        f"[Summary:{backend.upper()}] total={total} "
+        f"passed={passed} failed={failed} accuracy={accuracy*100:.1f}%"
+    )
+
+    # --- Construct response ---
+    return BatchRunResponse(
         total=total,
         passed=passed,
         failed=failed,
         accuracy=accuracy,
-        results_path="outputs/mbpp_results.jsonl",
+        results_path=f"outputs/{backend}_mbpp_results.jsonl",
     )
 
-    print(f"[Summary] total={total} passed={passed} failed={failed} accuracy={accuracy*100:.1f}%")
-    return summary
 
 
 # -------------------------------------------------------------------------
-# Entry point for local dev
+# Entry Point
 # -------------------------------------------------------------------------
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

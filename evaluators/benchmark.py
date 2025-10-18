@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional
 
 from evaluators.executor import _MBPP_PROMPT_TEMPLATE
 from adapters.daytona_client import DaytonaClient, base_client, DaytonaPool
+from adapters.e2b_client import E2BClient, E2BPool
 from agents.martian_agent import MartianAgent
 from utils import utils
 from evaluators.scorer import binary_score
@@ -65,42 +66,62 @@ async def run_one(idx: int, client: base_client.SandboxClient, agent: MartianAge
 async def run_mbpp_batch(
     n: int = 120,
     concurrency: int = _CONCURRENCY_LIMIT,
-    pool: Optional[DaytonaPool] = None,
+    pool: Optional[Any] = None,
+    backend: str = "daytona",
 ):
-    """Run all MBPP problems with parallel sandbox execution."""
+    """Run all MBPP problems with parallel sandbox execution (backend-agnostic)."""
+
+    # Select appropriate client/pool based on backend
+    if backend == "daytona":
+        client_cls, pool_cls = DaytonaClient, DaytonaPool
+    elif backend == "e2b":
+        client_cls, pool_cls = E2BClient, E2BPool
+    else:
+        raise ValueError(f"Unsupported backend: {backend}")
+
+    # Spin up our own pool if none provided
     own_pool = False
     if pool is None:
-        pool = DaytonaPool(size=5)
+        pool = pool_cls(size=min(concurrency, 5))
         await pool.start()
         own_pool = True
 
-    client = DaytonaClient(pool)
+    # Initialize client + agent
+    client = client_cls(pool)
     agent = MartianAgent()
-    print("AGENT:", agent)
-    print("client:", client)
-    print(f"Starting MBPP batch run for {n} problems with concurrency={concurrency}\n")
+    print(f"[INIT] Backend={backend}")
+    print(f"[INIT] Agent={agent}")
+    print(f"[INIT] Client={client}")
+    print(f"[INIT] Running {n} MBPP problems with concurrency={concurrency}\n")
 
+    # Semaphore for concurrency limiting
     sem = asyncio.Semaphore(concurrency)
 
     async def sem_task(idx: int):
         async with sem:
             return await run_one(idx, client, agent)
 
+    # Launch tasks
     start = time.perf_counter()
     tasks = [asyncio.create_task(sem_task(i)) for i in range(n)]
     results = await asyncio.gather(*tasks)
     total_time = time.perf_counter() - start
 
-    out_path = Path("outputs/mbpp_results.jsonl")
+    # Save results per backend
+    out_path = Path(f"outputs/{backend}_mbpp_results.jsonl")
     out_path.parent.mkdir(exist_ok=True, parents=True)
     with open(out_path, "w") as f:
         for r in results:
             f.write(json.dumps(r) + "\n")
 
-    print(f"\nCompleted {n} MBPP problems in {total_time:.1f}s ({total_time/n:.2f}s avg)")
-    print(f"Results saved to {out_path}")
+    print(
+        f"\n[{backend.upper()}] Completed {n} MBPP problems "
+        f"in {total_time:.1f}s ({total_time/n:.2f}s avg)"
+    )
+    print(f"[{backend.upper()}] Results saved to {out_path}")
 
+    # Cleanup if pool was owned here
     if own_pool:
-        await pool.close()
+        await pool.close() if hasattr(pool, "close") else await pool.shutdown()
 
     return results
