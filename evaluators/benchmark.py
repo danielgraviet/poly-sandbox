@@ -10,7 +10,7 @@ from typing import Dict, Any
 from evaluators.executor import _MBPP_PROMPT_TEMPLATE
 from adapters.daytona_client import DaytonaClient, base_client, DaytonaPool
 from agents.martian_agent import MartianAgent
-from utils.utils import extract_python_code
+from utils import utils
 from evaluators.scorer import binary_score
 from hf_datasets.mbpp_loader import get_problem
 
@@ -22,7 +22,11 @@ async def run_one(idx: int, client: base_client.SandboxClient, agent: MartianAge
     """Run one MBPP problem end-to-end asynchronously."""
     print(f"\n[START] Problem {idx}")
     problem = get_problem(idx)
-    prompt = _MBPP_PROMPT_TEMPLATE.format(problem_text=problem["prompt"])
+    prompt = _MBPP_PROMPT_TEMPLATE.format(
+        problem_text=problem["prompt"],
+        function_name=problem["function_name"],
+    )
+    print("PROMPT: ", prompt)
     tests = "\n".join(problem["test_list"])
 
     try:
@@ -31,7 +35,7 @@ async def run_one(idx: int, client: base_client.SandboxClient, agent: MartianAge
         raw = await agent.generate_code(prompt)
         print(f"[GEN-DONE] idx={idx}")
 
-        code = extract_python_code(raw) or raw
+        code = utils.extract_python_code(raw) or raw
         print(f"[EXTRACT] idx={idx} → {len(code.splitlines())} lines")
 
         # Execute code
@@ -97,6 +101,7 @@ async def run_mbpp_batch(n: int = 120, concurrency: int = _CONCURRENCY_LIMIT):
 
     print(f"\nCompleted {n} MBPP problems in {total_time:.1f}s ({total_time/n:.2f}s per problem avg)")
     print(f"Results saved to {out_path}")
+    utils.summarize_mbpp_results(out_path)
 
     try:
         await pool.close()

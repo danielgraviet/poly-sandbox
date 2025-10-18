@@ -18,11 +18,12 @@ Write a correct, efficient, and readable solution for the following task.
 Problem:
 {problem_text}
 
-Your response must include only Python code inside triple backticks, like this:
+You must define a function with the **exact name**:
 
 ```python
-# your solution here
-```
+def {function_name}(...):
+    # your implementation here
+``` 
 """
 
 
@@ -66,7 +67,10 @@ async def run_single_mbpp(idx: int = 0, backend: str = "daytona") -> dict:
     """
 
     problem = mbpp_loader.get_problem(idx)
-    prompt = _MBPP_PROMPT_TEMPLATE.format(problem_text=problem["prompt"])
+    prompt = _MBPP_PROMPT_TEMPLATE.format(
+        problem_text=problem["prompt"],
+        function_name=problem["function_name"],
+    )
     tests = "\n".join(problem["test_list"])
 
     agent = martian_agent.MartianAgent()

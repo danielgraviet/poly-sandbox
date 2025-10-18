@@ -11,6 +11,9 @@ from typing import Any, Optional, List
 
 from daytona import Daytona, DaytonaConfig
 import adapters.base_client as base_client
+import logging
+
+_LOGGER = logging.getLogger(__name__)
 
 class DaytonaPool:
     """Manage a reusable pool of Daytona sandboxes."""
@@ -30,7 +33,6 @@ class DaytonaPool:
             try:
                 sb = self._daytona.create()
                 sb_id = getattr(sb, "id", None)
-                print(f"[Pool] Sandbox {i} created (id={sb_id})")
 
                 # Give Daytona a brief moment to finish booting
                 await asyncio.sleep(2)

@@ -4,7 +4,9 @@ from __future__ import annotations
 from typing import Any, Dict, TypedDict, List
 import datasets
 from utils import utils
-import pytest
+import logging
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class MBPPDataPoint(TypedDict):
