@@ -1,0 +1,26 @@
+[project]
+name = "poly_sandbox"
+version = "0.1.0"
+description = "Unified sandbox orchestrator for Daytona, E2B, and Docker"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "daytona",
+    "uvicorn",
+    "httpx",
+    "pydantic>=2.0",
+    "datasets",     # for MBPP/HumanEval
+    "docker",       # optional, for local DockerClient
+    "loguru",       # nice structured logging
+    "streamlit",    # optional frontend
+    "pytest",       # for testing
+    "pytest-asyncio" # for async test support
+]
+
+[tool.pytest.ini_options]
+# This section tells pytest how to discover and run tests
+addopts = "-v --tb=short"
+testpaths = ["poly_sandbox/tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
