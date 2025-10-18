@@ -13,7 +13,7 @@ class ExecutionResult:
     success: bool
     runtime_ms: float
     backend: str
-    metadata: Optional[dict[str, Any]]
+    metadata: Optional[dict[str, Any]] = dataclasses.field(default_factory=dict)
 
 
 class SandboxClient(abc.ABC):
