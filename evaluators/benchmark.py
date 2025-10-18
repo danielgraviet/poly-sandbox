@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from evaluators.executor import _MBPP_PROMPT_TEMPLATE
-from adapters.daytona_client import DaytonaClient, base_client
+from adapters.daytona_client import DaytonaClient, base_client, DaytonaPool
 from agents.martian_agent import MartianAgent
 from utils.utils import extract_python_code
 from evaluators.scorer import binary_score
@@ -36,6 +36,8 @@ async def run_one(idx: int, client: base_client.SandboxClient, agent: MartianAge
 
         # Execute code
         print(f"[RUN] idx={idx} Calling DaytonaClient.run()")
+        print(f"[DEBUG] idx={idx} --- EXECUTING CODE ---\n{code}\n")
+        print(f"[DEBUG] idx={idx} --- EXECUTING TESTS ---\n{tests}\n")
         result = await client.run(code, tests)
         print(f"[RUN-DONE] idx={idx} success={result.success}")
         
@@ -58,18 +60,28 @@ async def run_one(idx: int, client: base_client.SandboxClient, agent: MartianAge
 
 async def run_mbpp_batch(n: int = 120, concurrency: int = _CONCURRENCY_LIMIT):
     """Run all MBPP problems with parallel sandbox execution."""
+    pool_size = min(concurrency, 10)
+    pool = DaytonaPool(size=pool_size)
+    await pool.start()
+    client = DaytonaClient(pool)
     agent = MartianAgent()
-    client = DaytonaClient()
     print("AGENT: ", agent) # showing 
     print("client: ", client) # showing
-    print(f"Starting MBPP batch run for {n} problems with concurrency={concurrency}\n")
+    print(f"\n[INIT] Agent ready. Daytona pool size={pool_size}, concurrency={concurrency}")
+    print(f"[INIT] Starting MBPP batch for {n} problems...\n")
 
     sem = asyncio.Semaphore(concurrency) 
 
     # could be doing the full evalution, but i want you to add logs so I can see each problem 
     async def sem_task(idx: int):
         async with sem:
-            return await run_one(idx, client, agent)
+            try:
+                # mark which sandbox handles this problem (logged inside client)
+                result = await run_one(idx, client, agent)
+                return result
+            except Exception as e:
+                print(f"[ERROR] idx={idx} → {e}")
+                return {"idx": idx, "error": str(e)}
 
     start = time.perf_counter()
     tasks = [asyncio.create_task(sem_task(i)) for i in range(n)]
@@ -86,4 +98,12 @@ async def run_mbpp_batch(n: int = 120, concurrency: int = _CONCURRENCY_LIMIT):
     print(f"\nCompleted {n} MBPP problems in {total_time:.1f}s ({total_time/n:.2f}s per problem avg)")
     print(f"Results saved to {out_path}")
 
+    try:
+        await pool.close()
+    except Exception as e:
+        print("[CLOSE] Pool cleanup error:", e)
+    else:
+        print("[CLOSE] All sandboxes deleted.")
+
+    print(f"[SUMMARY] Results saved to {out_path}")
     return results

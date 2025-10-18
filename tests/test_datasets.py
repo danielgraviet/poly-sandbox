@@ -5,5 +5,6 @@ from hf_datasets import mbpp_loader
 def test_load_mbpp():
     ds = mbpp_loader.load_mbpp()
     sample = ds[0]
+    print(sample)
     assert len(ds) == 120
     assert sample is not None
