@@ -1,6 +1,7 @@
 import pytest
 import asyncio
-from adapters import base_client
+import os
+from adapters import base_client, daytona_client
 
 class MockClient(base_client.SandboxClient):
     backend_name = "mock"
@@ -36,3 +37,17 @@ async def test_mock_client_run():
     assert result.success
     assert "mock" in result.backend
     assert result.runtime_ms >= 0
+
+
+@pytest.mark.daytona
+@pytest.mark.asyncio
+async def test_daytona_smoke():
+    if not os.getenv("DAYTONA_API_KEY"):
+        pytest.skip("Skipping live Daytona test: missing DAYTONA_API_KEY.")
+
+    client = daytona_client.DaytonaClient()
+    result = await client.run('print("Hello from Daytona")', 'assert 1 + 1 == 2')
+    print("RESULT: ", result)
+    assert isinstance(result, base_client.ExecutionResult)
+    assert result.success
+    assert "Hello" in result.stdout
