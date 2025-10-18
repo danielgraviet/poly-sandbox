@@ -1,0 +1,10 @@
+{"idx": 0, "error": "Failed to execute command: bad request: no IP address found. Is the Sandbox started?"}
+{"idx": 1, "error": "Failed to execute command: Sandbox is not running"}
+{"idx": 2, "error": "Failed to execute command: Sandbox is not running"}
+{"idx": 3, "error": "Failed to execute command: Sandbox is not running"}
+{"idx": 4, "error": "Failed to remove sandbox: Sandbox state change in progress"}
+{"idx": 5, "error": "Failed to execute command: Sandbox is not running"}
+{"idx": 6, "error": "Failed to execute command: Sandbox is not running"}
+{"idx": 7, "error": "Failed to execute command: Sandbox is not running"}
+{"idx": 8, "error": "Failed to execute command: Sandbox is not running"}
+{"idx": 9, "success": false, "score": false, "runtime_ms": 364.4029159913771, "stdout": "", "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n    exec(__import__(\"base64\").b64decode(\"ZGVmIHVuemlwX2xpc3Rfb2ZfcGFpcnMocGFpcnMpOgogICAgcmV0dXJuIFtsaXN0KHgpIGZvciB4IGluIHppcCgqcGFpcnMpXQoKYXNzZXJ0IG1lcmdlKFtbJ3gnLCAneSddLCBbJ2EnLCAnYiddLCBbJ20nLCAnbiddXSkgPT0gW1sneCcsICdhJywgJ20nXSwgWyd5JywgJ2InLCAnbiddXQphc3NlcnQgbWVyZ2UoW1sxLCAyXSwgWzMsIDRdLCBbNSwgNl0sIFs3LCA4XV0pID09IFtbMSwgMywgNSwgN10sIFsyLCA0LCA2LCA4XV0KYXNzZXJ0IG1lcmdlKFtbJ3gnLCAneScsJ3onIF0sIFsnYScsICdiJywnYyddLCBbJ20nLCAnbicsJ28nXV0pID09IFtbJ3gnLCAnYScsICdtJ10sIFsneScsICdiJywgJ24nXSxbJ3onLCAnYycsJ28nXV0=\").decode())\n    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<string>\", line 4, in <module>\nNameError: name 'merge' is not defined\n", "code": "def unzip_list_of_pairs(pairs):\n    return [list(x) for x in zip(*pairs)]"}

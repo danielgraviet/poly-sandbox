@@ -1,4 +1,3 @@
-import datasets
 import pytest
 from hf_datasets import mbpp_loader
 
