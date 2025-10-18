@@ -1,7 +1,28 @@
+## 📸 Screenshots
+
+<p align="center">
+  <img src="assets/logo.png" width="160" alt="PolySandbox Logo" />
+</p>
+
+<p align="center">
+  <img src="assets/daytona.png" width="500" alt="Daytona sandbox run example" />
+</p>
+
+<p align="center">
+  <img src="assets/fast-as-fuh.png" width="500" alt="Daytona execution speed comparison" />
+</p>
+
+<p align="center">
+  <img src="assets/mcqueen.png" width="400" alt="Lightning-fast Daytona run - McQueen reference" />
+</p>
+
+<p align="center">
+  <img src="assets/hack.png" width="500" alt="Hackathon team working on PolySandbox" />
+</p>
+
 🧩 PolySandbox
 
 One Interface to Run AI Code Across Daytona, E2B, and Docker
-
 PolySandbox is a unified sandbox orchestrator that lets you safely run, evaluate, and compare Python code across multiple execution backends — all through one consistent interface.
 It’s designed for benchmarking AI-generated code from datasets like MBPP and HumanEval, enabling reproducible and backend-agnostic evaluation.
 
