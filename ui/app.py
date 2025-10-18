@@ -5,7 +5,6 @@ API_BASE = "http://localhost:8000"  # FastAPI backend URL
 
 st.set_page_config(page_title="PolySandbox Demo", layout="wide")
 
-# ---------------- Sidebar ---------------- #
 st.sidebar.title("PolySandbox Settings")
 
 backend = st.sidebar.selectbox("Select Backend", ["daytona"], index=0)
@@ -17,7 +16,6 @@ st.sidebar.subheader("Actions")
 run_mode = st.sidebar.radio("Run Mode", ["Single Problem", "Batch Evaluation"])
 run_button = st.sidebar.button("Run Evaluation")
 
-# ---------------- Main Area ---------------- #
 st.title("PolySandbox — Unified Sandbox Orchestrator")
 
 if run_button:

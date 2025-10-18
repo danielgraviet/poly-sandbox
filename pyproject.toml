@@ -17,6 +17,8 @@ dependencies = [
     "pytest", # for testing # for async test support
     "pytest-asyncio",
     "openai>=2.5.0",
+    "e2b>=2.3.3",
+    "e2b-code-interpreter>=2.2.0",
 ]
 
 [tool.pytest.ini_options]

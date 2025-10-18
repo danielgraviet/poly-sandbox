@@ -7,7 +7,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import Literal, Optional
 
-from adapters.daytona_client import DaytonaClient, DaytonaPool, base_client
+from adapters.daytona_client import DaytonaClient, DaytonaPool
+from adapters.e2b_client import E2BClient, E2BPool
 from evaluators import scorer, benchmark
 from adapters.base_client import ExecutionResult
 from agents import martian_agent
@@ -19,7 +20,7 @@ app = FastAPI(title="PolySandbox API", version="0.1.0")
 # -------------------------------------------------------------------------
 _BACKEND_REGISTRY = {
     "daytona": DaytonaClient,
-    # "e2b": E2BClient,
+    "e2b": E2BClient,
     # "docker": DockerClient,
 }
 
@@ -27,6 +28,7 @@ _BACKEND_REGISTRY = {
 # Global Pool Initialization
 # -------------------------------------------------------------------------
 _pool: Optional[DaytonaPool] = None
+_e2b_pool: Optional[E2BPool] = None
 
 class BatchRunResponse(BaseModel):
     total: int
@@ -38,22 +40,35 @@ class BatchRunResponse(BaseModel):
 
 @app.on_event("startup")
 async def startup_event():
-    """Spin up reusable Daytona pool at startup."""
-    global _pool
+    """Spin up reusable sandbox pools at startup."""
+    global _pool, _e2b_pool
     print("[Startup] Initializing Daytona pool...")
     _pool = DaytonaPool(size=5)
     await _pool.start()
     print("[Startup] Daytona pool ready.")
 
+    print("[Startup] Initializing E2B pool...")
+    _e2b_pool = E2BPool(size=5)
+    await _e2b_pool.start()
+    print("[Startup] E2B pool ready.")
+
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Clean up sandboxes on shutdown."""
-    global _pool
+    global _pool, _e2b_pool
+
     if _pool:
-        print("[Shutdown] Cleaning up sandboxes...")
+        print("[Shutdown] Cleaning up Daytona sandboxes...")
         await _pool.close()
-        print("[Shutdown] All sandboxes deleted.")
+        print("[Shutdown] Daytona sandboxes deleted.")
+
+    if _e2b_pool:
+        print("[Shutdown] Cleaning up E2B sandboxes...")
+        await _e2b_pool.shutdown()
+        print("[Shutdown] E2B sandboxes deleted.")
+
 
 
 # -------------------------------------------------------------------------
@@ -87,11 +102,19 @@ def list_backends():
 
 
 @app.post("/run", response_model=RunResponse)
-async def run_single(index: int = 0):
+async def run_single(index: int = 0, backend: str = "daytona"):
     """Run a single MBPP problem end-to-end and return detailed results."""
-    global _pool
-    if _pool is None:
-        raise HTTPException(status_code=503, detail="Daytona pool not initialized")
+    global _pool, _e2b_pool
+    if backend == "daytona":
+        if _pool is None:
+            raise HTTPException(status_code=503, detail="Daytona pool not initialized")
+        client = DaytonaClient(_pool)
+    elif backend == "e2b":
+        if _e2b_pool is None:
+            raise HTTPException(status_code=503, detail="E2B pool not initialized")
+        client = E2BClient(_e2b_pool)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported backend: {backend}")
 
     try:
         # Reuse existing Daytona pool and shared Martian agent
