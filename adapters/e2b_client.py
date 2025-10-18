@@ -40,7 +40,7 @@ class E2BPool:
             sandboxes = []
             for i in range(self._size):
                 try:
-                    sb = Sandbox.create(timeout=60)
+                    sb = Sandbox.create(timeout=600)
                     sandboxes.append(sb)
                     print(f"[E2BPool] Sandbox {i} ready: {sb.sandbox_id}")
                 except Exception as e:
