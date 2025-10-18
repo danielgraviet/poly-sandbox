@@ -90,7 +90,7 @@ async def run_agent(index: int = 0, pools: Optional[dict] = None):
     print(f"[AGENT] Toggled backend → {backend}")
 
     if backend == "e2b":
-        await asyncio.sleep(2.0)
+        await asyncio.sleep(3.0)
     print(f"[AGENT] Selected backend: {backend} (prompt length={len(prompt)})")
 
     if not pools or backend not in pools:
