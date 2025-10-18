@@ -33,8 +33,7 @@ async def run_one(idx: int, client: base_client.SandboxClient, agent: MartianAge
     print("PROMPT: ", prompt)
     tests = "\n".join(problem["test_list"])
     if "E2BClient" in str(client):
-        print("e2b sleep!")
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(2.0)
 
     try:
         # Generate code
@@ -91,7 +90,7 @@ async def run_agent(index: int = 0, pools: Optional[dict] = None):
     print(f"[AGENT] Toggled backend → {backend}")
 
     if backend == "e2b":
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(2.0)
     print(f"[AGENT] Selected backend: {backend} (prompt length={len(prompt)})")
 
     if not pools or backend not in pools:
@@ -139,8 +138,7 @@ async def run_mbpp_batch(
     # Initialize client + agent
     client = client_cls(pool)
     if "E2BClient" in str(client):
-        print("e2b sleep!")
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(2.0)
     agent = MartianAgent()
     print(f"[INIT] Backend={backend}")
     print(f"[INIT] Agent={agent}")
