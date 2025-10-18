@@ -2,4 +2,4 @@ import asyncio
 from evaluators.benchmark import run_mbpp_batch
 
 if __name__ == "__main__":
-    asyncio.run(run_mbpp_batch(n=5, concurrency=5))
+    asyncio.run(run_mbpp_batch(n=120, concurrency=5))

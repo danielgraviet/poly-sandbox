@@ -5,7 +5,7 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from evaluators.executor import _MBPP_PROMPT_TEMPLATE
 from adapters.daytona_client import DaytonaClient, base_client, DaytonaPool
@@ -15,7 +15,7 @@ from evaluators.scorer import binary_score
 from hf_datasets.mbpp_loader import get_problem
 
 
-_CONCURRENCY_LIMIT = 20  # number of sandboxes / parallel tasks
+_CONCURRENCY_LIMIT = 5  # number of sandboxes / parallel tasks
 
 
 async def run_one(idx: int, client: base_client.SandboxClient, agent: MartianAgent) -> Dict[str, Any]:
@@ -62,53 +62,45 @@ async def run_one(idx: int, client: base_client.SandboxClient, agent: MartianAge
         return {"idx": idx, "error": str(e)}
 
 
-async def run_mbpp_batch(n: int = 120, concurrency: int = _CONCURRENCY_LIMIT):
+async def run_mbpp_batch(
+    n: int = 120,
+    concurrency: int = _CONCURRENCY_LIMIT,
+    pool: Optional[DaytonaPool] = None,
+):
     """Run all MBPP problems with parallel sandbox execution."""
-    pool_size = min(concurrency, 10)
-    pool = DaytonaPool(size=pool_size)
-    await pool.start()
+    own_pool = False
+    if pool is None:
+        pool = DaytonaPool(size=5)
+        await pool.start()
+        own_pool = True
+
     client = DaytonaClient(pool)
     agent = MartianAgent()
-    print("AGENT: ", agent) # showing 
-    print("client: ", client) # showing
-    print(f"\n[INIT] Agent ready. Daytona pool size={pool_size}, concurrency={concurrency}")
-    print(f"[INIT] Starting MBPP batch for {n} problems...\n")
+    print("AGENT:", agent)
+    print("client:", client)
+    print(f"Starting MBPP batch run for {n} problems with concurrency={concurrency}\n")
 
-    sem = asyncio.Semaphore(concurrency) 
+    sem = asyncio.Semaphore(concurrency)
 
-    # could be doing the full evalution, but i want you to add logs so I can see each problem 
     async def sem_task(idx: int):
         async with sem:
-            try:
-                # mark which sandbox handles this problem (logged inside client)
-                result = await run_one(idx, client, agent)
-                return result
-            except Exception as e:
-                print(f"[ERROR] idx={idx} → {e}")
-                return {"idx": idx, "error": str(e)}
+            return await run_one(idx, client, agent)
 
     start = time.perf_counter()
     tasks = [asyncio.create_task(sem_task(i)) for i in range(n)]
     results = await asyncio.gather(*tasks)
     total_time = time.perf_counter() - start
 
-    # Save results
     out_path = Path("outputs/mbpp_results.jsonl")
     out_path.parent.mkdir(exist_ok=True, parents=True)
     with open(out_path, "w") as f:
         for r in results:
             f.write(json.dumps(r) + "\n")
 
-    print(f"\nCompleted {n} MBPP problems in {total_time:.1f}s ({total_time/n:.2f}s per problem avg)")
+    print(f"\nCompleted {n} MBPP problems in {total_time:.1f}s ({total_time/n:.2f}s avg)")
     print(f"Results saved to {out_path}")
-    utils.summarize_mbpp_results(out_path)
 
-    try:
+    if own_pool:
         await pool.close()
-    except Exception as e:
-        print("[CLOSE] Pool cleanup error:", e)
-    else:
-        print("[CLOSE] All sandboxes deleted.")
 
-    print(f"[SUMMARY] Results saved to {out_path}")
     return results
