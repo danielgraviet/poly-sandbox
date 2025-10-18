@@ -10,6 +10,7 @@ from typing import Literal, Optional
 from adapters.daytona_client import DaytonaClient, DaytonaPool, base_client
 from evaluators import scorer, benchmark
 from adapters.base_client import ExecutionResult
+from agents import martian_agent
 
 app = FastAPI(title="PolySandbox API", version="0.1.0")
 
@@ -86,33 +87,45 @@ def list_backends():
 
 
 @app.post("/run", response_model=RunResponse)
-async def run_code(req: RunRequest):
-    """Run code + tests inside a sandbox backend."""
+async def run_single(index: int = 0):
+    """Run a single MBPP problem end-to-end and return detailed results."""
     global _pool
-
-    if req.backend not in _BACKEND_REGISTRY:
-        raise HTTPException(status_code=400, detail=f"Unknown backend: {req.backend}")
-
     if _pool is None:
         raise HTTPException(status_code=503, detail="Daytona pool not initialized")
 
-    backend_cls = _BACKEND_REGISTRY[req.backend]
     try:
-        client = backend_cls(_pool)  # ✅ pass in pool
-        result: ExecutionResult = await client.run(req.code, req.tests)
-        score = scorer.binary_score(result)
+        # Reuse existing Daytona pool and shared Martian agent
+        client = DaytonaClient(_pool)
+        agent = martian_agent.MartianAgent()
+
+        # Run the single benchmark problem
+        result = await benchmark.run_one(index, client, agent)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Execution failed: {e}")
 
-    return RunResponse(
-        backend=req.backend,
-        success=result.success,
-        runtime_ms=result.runtime_ms,
-        stdout=result.stdout,
-        stderr=result.stderr,
-        score=score,
-        metadata=result.metadata,
+    # If an error was returned by the benchmark
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=f"Benchmark failed: {result['error']}")
+
+    # Construct structured API response
+    response = RunResponse(
+        backend="daytona",
+        success=bool(result.get("success", False)),
+        runtime_ms=float(result.get("runtime_ms", 0.0)),
+        stdout=result.get("stdout", ""),
+        stderr=result.get("stderr", ""),
+        score=bool(result.get("score", False)),
+        metadata={"idx": result.get("idx"), "note": "benchmark.run_one"},
     )
+
+    print(
+        f"[Result] idx={result['idx']} "
+        f"success={result['success']} "
+        f"score={'PASS' if result['score'] else 'FAIL'} "
+        f"runtime={result['runtime_ms']:.2f}ms"
+    )
+    return response
+
     
 @app.post("/run_batch", response_model=BatchRunResponse)
 async def run_batch(n: int = 10, concurrency: int = 5):
@@ -144,8 +157,6 @@ async def run_batch(n: int = 10, concurrency: int = 5):
 
     print(f"[Summary] total={total} passed={passed} failed={failed} accuracy={accuracy*100:.1f}%")
     return summary
-
-
 
 
 # -------------------------------------------------------------------------
