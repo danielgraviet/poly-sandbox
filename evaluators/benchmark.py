@@ -6,6 +6,7 @@ import json
 import time
 from pathlib import Path
 from typing import Dict, Any, Optional
+import random
 
 from evaluators.executor import _MBPP_PROMPT_TEMPLATE
 from adapters.daytona_client import DaytonaClient, base_client, DaytonaPool
@@ -14,6 +15,8 @@ from agents.martian_agent import MartianAgent
 from utils import utils
 from evaluators.scorer import binary_score
 from hf_datasets.mbpp_loader import get_problem
+_last_backend = None  # global tracker
+
 
 
 _CONCURRENCY_LIMIT = 5  # number of sandboxes / parallel tasks
@@ -29,6 +32,9 @@ async def run_one(idx: int, client: base_client.SandboxClient, agent: MartianAge
     )
     print("PROMPT: ", prompt)
     tests = "\n".join(problem["test_list"])
+    if "E2BClient" in str(client):
+        print("e2b sleep!")
+        await asyncio.sleep(1.0)
 
     try:
         # Generate code
@@ -40,7 +46,7 @@ async def run_one(idx: int, client: base_client.SandboxClient, agent: MartianAge
         print(f"[EXTRACT] idx={idx} → {len(code.splitlines())} lines")
 
         # Execute code
-        print(f"[RUN] idx={idx} Calling DaytonaClient.run()")
+        print(f"[RUN] idx={idx} Calling client.run()")
         print(f"[DEBUG] idx={idx} --- EXECUTING CODE ---\n{code}\n")
         print(f"[DEBUG] idx={idx} --- EXECUTING TESTS ---\n{tests}\n")
         result = await client.run(code, tests)
@@ -61,6 +67,50 @@ async def run_one(idx: int, client: base_client.SandboxClient, agent: MartianAge
 
     except Exception as e:
         return {"idx": idx, "error": str(e)}
+
+
+async def run_agent(index: int = 0, pools: Optional[dict] = None):
+    """Autonomous agent that decides backend (E2B vs Daytona) based on prompt length."""
+    print(f"\n[AGENT] Starting autonomous run for problem #{index}")
+    problem = get_problem(index)
+    prompt = _MBPP_PROMPT_TEMPLATE.format(
+        problem_text=problem["prompt"],
+        function_name=problem["function_name"],
+    )
+
+    # --- Decision logic (MVP heuristic) ---
+    global _last_backend
+
+    # Toggle between Daytona and E2B each call
+    if _last_backend == "daytona":
+        backend = "e2b"
+    else:
+        backend = "daytona"
+
+    _last_backend = backend
+    print(f"[AGENT] Toggled backend → {backend}")
+
+    if backend == "e2b":
+        await asyncio.sleep(1.0)
+    print(f"[AGENT] Selected backend: {backend} (prompt length={len(prompt)})")
+
+    if not pools or backend not in pools:
+        raise RuntimeError(f"{backend} pool not initialized in server")
+
+    pool = pools[backend]
+    client_cls = DaytonaClient if backend == "daytona" else E2BClient
+    client = client_cls(pool)
+    agent = MartianAgent()
+
+    # --- Run evaluation ---
+    result = await run_one(index, client, agent)
+    result["backend"] = backend
+    print(
+        f"[AGENT] Completed problem #{index} "
+        f"→ backend={backend}, success={result.get('success')}, score={result.get('score')}"
+    )
+
+    return result
 
 
 async def run_mbpp_batch(
@@ -88,6 +138,9 @@ async def run_mbpp_batch(
 
     # Initialize client + agent
     client = client_cls(pool)
+    if "E2BClient" in str(client):
+        print("e2b sleep!")
+        await asyncio.sleep(1.0)
     agent = MartianAgent()
     print(f"[INIT] Backend={backend}")
     print(f"[INIT] Agent={agent}")

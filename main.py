@@ -6,6 +6,7 @@ import asyncio
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import Literal, Optional
+from time import perf_counter
 
 from adapters.daytona_client import DaytonaClient, DaytonaPool
 from adapters.e2b_client import E2BClient, E2BPool
@@ -47,6 +48,8 @@ class BatchRunResponse(BaseModel):
     failed: int
     accuracy: float
     results_path: str
+    total_runtime_sec: Optional[float] = None
+    avg_runtime_sec: Optional[float] = None
 
 
 # -------------------------------------------------------------------------
@@ -131,13 +134,37 @@ async def run_single(index: int = 0, backend: str = "daytona"):
         metadata={"idx": result.get("idx"), "note": f"run_one via {backend}"},
     )
 
+    
+@app.post("/run_agent", response_model=RunResponse)
+async def run_agent(index: int = 0):
+    """Autonomous agent route: chooses backend automatically and runs MBPP problem."""
+    global _pools
+
+    try:
+        result = await benchmark.run_agent(index=index, pools=_pools)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Agent execution failed: {e}")
+
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=f"Agent benchmark failed: {result['error']}")
+
+    return RunResponse(
+        backend=result.get("backend", "unknown"),
+        success=bool(result.get("success", False)),
+        runtime_ms=float(result.get("runtime_ms", 0.0)),
+        stdout=result.get("stdout", ""),
+        stderr=result.get("stderr", ""),
+        score=bool(result.get("score", False)),
+        metadata={"idx": result.get("idx"), "note": "run_agent autonomous"},
+    )
+
 
 @app.post("/run_batch", response_model=BatchRunResponse)
 async def run_batch(n: int = 10, concurrency: int = 5, backend: str = "daytona"):
     """Run MBPP batch directly from Hugging Face and return summary results."""
     global _pools
 
-    # Validate backend
+    # --- Validate backend ---
     if backend not in _BACKEND_REGISTRY:
         raise HTTPException(status_code=400, detail=f"Unknown backend: {backend}")
 
@@ -146,36 +173,44 @@ async def run_batch(n: int = 10, concurrency: int = 5, backend: str = "daytona")
         raise HTTPException(status_code=503, detail=f"{backend} pool not initialized")
 
     try:
+        start_time = perf_counter()
+
+        # Run benchmark for N problems using the selected backend
         results = await benchmark.run_mbpp_batch(
             n=n,
             concurrency=concurrency,
             pool=pool,
             backend=backend,
         )
+
+        total_time = perf_counter() - start_time
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Batch execution failed: {e}")
 
-    # --- Compute simple metrics ---
+    # --- Compute metrics ---
     total = len(results)
     passed = sum(1 for r in results if r.get("score") is True)
     failed = total - passed
     accuracy = round(passed / total, 4) if total > 0 else 0.0
+    avg_runtime_sec = round(total_time / n, 2) if n > 0 else 0.0
 
-    # --- Log summary for visibility ---
+    # --- Log summary ---
     print(
         f"[Summary:{backend.upper()}] total={total} "
-        f"passed={passed} failed={failed} accuracy={accuracy*100:.1f}%"
+        f"passed={passed} failed={failed} accuracy={accuracy*100:.1f}% "
+        f"total_time={total_time:.2f}s avg={avg_runtime_sec:.2f}s"
     )
 
-    # --- Construct response ---
+    # --- Return response to Streamlit ---
     return BatchRunResponse(
         total=total,
         passed=passed,
         failed=failed,
         accuracy=accuracy,
         results_path=f"outputs/{backend}_mbpp_results.jsonl",
+        total_runtime_sec=round(total_time, 2),
+        avg_runtime_sec=avg_runtime_sec,
     )
-
 
 
 # -------------------------------------------------------------------------
