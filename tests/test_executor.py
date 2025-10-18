@@ -2,7 +2,7 @@ import os
 import pytest
 import datasets
 
-from evaluators.executor import run_pipeline
+from evaluators.executor import run_pipeline, run_single_mbpp
 from evaluators.scorer import binary_score
 from adapters.base_client import ExecutionResult
 from hf_datasets import mbpp_loader
@@ -28,7 +28,7 @@ async def test_run_pipeline_mock(monkeypatch):
     assert isinstance(result, ExecutionResult)
     assert binary_score(result) is True
 
-@pytest.mark.daytona
+
 @pytest.mark.asyncio
 async def test_run_pipeline_with_daytona_mbpp():
     """Live test on MBPP dataset (skips if no Daytona credentials)."""
@@ -60,3 +60,15 @@ async def test_run_pipeline_with_daytona_mbpp():
 
     assert isinstance(result, ExecutionResult)
     assert "daytona" in result.backend
+
+@pytest.mark.martian
+@pytest.mark.asyncio
+async def test_run_single_mbpp():
+    result = await run_single_mbpp(idx=0)
+    
+    print("\n=== MBPP LIVE RESULT ===")
+    for k, v in result.items():
+        print(f"{k}: {v}\n")
+
+    assert "generated_code" in result
+    assert result["stdout"] is not None
