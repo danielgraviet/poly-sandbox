@@ -10,12 +10,13 @@ dependencies = [
     "uvicorn",
     "httpx",
     "pydantic>=2.0",
-    "datasets",     # for MBPP/HumanEval
-    "docker",       # optional, for local DockerClient
-    "loguru",       # nice structured logging
-    "streamlit",    # optional frontend
-    "pytest",       # for testing
-    "pytest-asyncio" # for async test support
+    "datasets", # for MBPP/HumanEval
+    "docker", # optional, for local DockerClient
+    "loguru", # nice structured logging
+    "streamlit", # optional frontend
+    "pytest", # for testing # for async test support
+    "pytest-asyncio",
+    "openai>=2.5.0",
 ]
 
 [tool.pytest.ini_options]
